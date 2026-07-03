@@ -54,6 +54,7 @@ export default function Optimizer() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const userProfileId = useStore((state) => state.userProfileId);
+  const isTerminal = useStore((state) => state.colorTheme) === "terminal";
 
   const { data: profile, isLoading: isProfileLoading } = useGetUserProfile({
     query: {
@@ -259,7 +260,9 @@ export default function Optimizer() {
               {/* Total savings banner */}
               <div className="bg-primary rounded-2xl p-6 text-primary-foreground flex items-center justify-between gap-4 flex-wrap shadow-lg">
                 <div>
-                  <div className="text-sm font-medium opacity-80 mb-1">&gt; potential_monthly_savings</div>
+                  <div className="text-sm font-medium opacity-80 mb-1">
+                    {isTerminal ? "> potential_monthly_savings" : "Potential monthly savings"}
+                  </div>
                   <div className="text-4xl font-display font-bold">~${totalEstimatedSavings}/mo</div>
                   <div className="text-sm opacity-75 mt-1">if you act on all 5 recommendations</div>
                 </div>

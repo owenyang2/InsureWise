@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ChatMessage, ApplicationConfirmation } from '@workspace/api-client-react';
+import { applyColorTheme, type ColorTheme } from '@/lib/color-theme';
 
 interface AppState {
   userProfileId: string | null;
@@ -11,6 +12,8 @@ interface AppState {
   clearChat: () => void;
   confirmationData: ApplicationConfirmation | null;
   setConfirmationData: (data: ApplicationConfirmation | null) => void;
+  colorTheme: ColorTheme;
+  setColorTheme: (theme: ColorTheme) => void;
 }
 
 export const useStore = create<AppState>()(
@@ -24,9 +27,19 @@ export const useStore = create<AppState>()(
       clearChat: () => set({ chatHistory: [] }),
       confirmationData: null,
       setConfirmationData: (data) => set({ confirmationData: data }),
+      colorTheme: 'classic',
+      setColorTheme: (theme) => {
+        applyColorTheme(theme);
+        set({ colorTheme: theme });
+      },
     }),
     {
       name: 'insurewise-storage',
+      onRehydrateStorage: () => (state) => {
+        if (state?.colorTheme) {
+          applyColorTheme(state.colorTheme);
+        }
+      },
     }
   )
 );

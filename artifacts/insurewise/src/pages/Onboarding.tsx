@@ -5,6 +5,7 @@ import { Send, User as UserIcon, Bot, Loader2, Check, Sparkles, Brain, Wand2, Ga
 import { useUpsertUserProfile, useAiParseAnswer, useAskExpert } from "@workspace/api-client-react";
 import { useStore } from "@/store/use-store";
 import { Navbar } from "@/components/layout/Navbar";
+import { ExpertMessageContent } from "@/components/ui/ExpertMessageContent";
 
 // ─── Question Template ──────────────────────────────────────────────────────
 
@@ -125,6 +126,51 @@ const BASE_QUESTIONS: Question[] = [
 
 interface Answers {
   [key: string]: string;
+}
+
+function skipAnsweredQuestions(queue: Question[], ans: Answers): Question[] {
+  return queue.filter((q) => !ans[q.id]?.trim());
+}
+
+function injectFollowUpsFromInsuranceType(insuranceType: string, queue: Question[]): Question[] {
+  const insQ = BASE_QUESTIONS.find((q) => q.id === "insuranceType");
+  const followUps = insQ?.followUp?.(insuranceType) ?? [];
+  return [...followUps, ...queue];
+}
+
+function buildExtractionAcknowledgment(entities: Record<string, string>): string {
+  const parts: string[] = [];
+  if (entities.insuranceType) {
+    parts.push(`looking for ${entities.insuranceType.toLowerCase()} insurance`);
+  }
+  if (entities.vehicleMake) {
+    parts.push(`with a ${entities.vehicleMake}`);
+  }
+  if (entities.vehicleYear) {
+    parts.push(`(${entities.vehicleYear})`);
+  }
+  if (entities.location) {
+    parts.push(`in ${entities.location}`);
+  }
+  if (entities.name) {
+    parts.push(`name noted as ${entities.name}`);
+  }
+  if (parts.length === 0) {
+    return "Thanks — I noted a few details.";
+  }
+  return `Got it — you're ${parts.join(" ")}.`;
+}
+
+function repromptForQuestion(questionId: string, questionText: string): string {
+  const reprompts: Record<string, string> = {
+    name: "What's your first name?",
+    insuranceType: "What type of insurance are you looking for?",
+    age: "How old are you?",
+    location: "What province are you in?",
+    vehicleMake: "What's the make and model of your vehicle?",
+    vehicleYear: "What year is your vehicle?",
+  };
+  return reprompts[questionId] ?? questionText;
 }
 
 function buildProfile(answers: Answers) {
@@ -294,7 +340,7 @@ export default function Onboarding() {
       extraQuestions = currentQ.followUp(answer) || [];
     }
 
-    const fullQueue = [...extraQuestions, ...queue];
+    const fullQueue = skipAnsweredQuestions([...extraQuestions, ...queue], newAnswers);
 
     if (fullQueue.length === 0) {
       // Done — save profile
@@ -410,6 +456,38 @@ export default function Onboarding() {
           });
 
           if (!res.parsedValue) {
+            const entities = Object.fromEntries(
+              Object.entries(res.extractedEntities ?? {}).filter(
+                ([, value]) => value != null && String(value).trim() !== "",
+              ),
+            ) as Record<string, string>;
+
+            if (Object.keys(entities).length > 0) {
+              const newAnswers = { ...answers, ...entities };
+              setAnswers(newAnswers);
+
+              let updatedQueue = [...questionQueue];
+              if (entities.insuranceType && currentQuestion.id !== "insuranceType") {
+                updatedQueue = injectFollowUpsFromInsuranceType(entities.insuranceType, updatedQueue);
+              }
+              updatedQueue = skipAnsweredQuestions(updatedQueue, newAnswers);
+              setQuestionQueue(updatedQueue);
+
+              setMessages((prev) => [
+                ...prev,
+                { role: "user", content: answer },
+                {
+                  role: "assistant",
+                  content: `${buildExtractionAcknowledgment(entities)} ${repromptForQuestion(currentQuestion.id, currentQuestion.text)}`,
+                  variant: "parser",
+                },
+              ]);
+              setInput("");
+              setSelected([]);
+              setIsParsing(false);
+              return;
+            }
+
             setMessages((prev) => [
               ...prev,
               { role: "user", content: answer },
@@ -567,7 +645,11 @@ export default function Onboarding() {
                           ? "bg-accent text-foreground rounded-tl-sm border border-border"
                           : "bg-muted text-foreground rounded-tl-sm border border-border/50"
                       }`}>
-                      {msg.content}
+                      {msg.variant === "expert" && msg.role === "assistant" ? (
+                        <ExpertMessageContent content={msg.content} />
+                      ) : (
+                        msg.content
+                      )}
                     </div>
                   </motion.div>
                 ))}

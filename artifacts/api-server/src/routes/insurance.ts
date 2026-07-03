@@ -4,6 +4,11 @@ import path from "node:path";
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { openai, AI_MODEL } from "../lib/ai.js";
+import { resolvePythonBin } from "../lib/python-bin.js";
+import {
+  buildParseAnswerPrompt,
+  parseAnswerFromModelContent,
+} from "../lib/parse-answer.js";
 import { schemas } from "@workspace/api-zod";
 const { SearchPoliciesBody, ExplainPolicyBody, GetApplicationFormBody, SubmitApplicationBody, AiParseAnswerBody, AskExpertBody } = schemas;
 import { db, userProfilesTable, applicationsTable, quoteResultsTable } from "@workspace/db";
@@ -1118,66 +1123,25 @@ router.post("/ai/parse-answer", async (req, res): Promise<void> => {
 
   const { questionId, questionText, answer } = parsed.data;
 
-  const prompt = `You are an AI assistant parsing answers for an insurance onboarding questionnaire.
-The user was asked: "${questionText}"
-The user's free-form answer was: "${answer}"
-
-CRITICAL RULES - FILTER OUT IRRELEVANT INFORMATION:
-- IGNORE any off-topic comments, personal preferences, or unrelated information (e.g., "I love pizza", "I'm hungry", "The weather is nice", etc.)
-- ONLY extract information that is DIRECTLY relevant to answering the question
-- If the answer contains BOTH relevant and irrelevant information, extract ONLY the relevant part
-- If the answer contains ONLY irrelevant information with no answer to the question, set 'parsedValue' to null
-- Examples:
-  * Question: "What's your name?" Answer: "John, I love pizza" → parsedValue: "John" (ignore "I love pizza")
-  * Question: "What's your name?" Answer: "I love pizza" → parsedValue: null (no name provided)
-  * Question: "What's your vehicle?" Answer: "Honda Civic, I love pizza" → parsedValue: "Honda Civic" (ignore "I love pizza")
-  * Question: "What's your age?" Answer: "25, I love pizza" → parsedValue: "25" (ignore "I love pizza")
-
-Your job is to extract the core intended answer to the question (parsedValue) and any additional details (extractedEntities).
-- For 'parsedValue', format it cleanly and ONLY include the answer to the question (e.g., if asked for insurance type and they said "I need coverage for my car", parsedValue is "Auto").
-- IMPORTANT: If the user says "I don't know", "not sure", provides only irrelevant information, or provides an ambiguous/unhelpful answer, you MUST set 'parsedValue' to null. Do not guess or assume.
-- For 'extractedEntities', include any other useful details found in their answer that are RELEVANT to insurance onboarding. You MUST use EXACTLY these keys if applicable: 'insuranceType', 'vehicleYear', 'vehicleMake', 'vehicleModel', 'budgetMonthly', 'propertyType', 'age', 'name', 'location'. (e.g. if they say "I have a 1999 tesla", extractedEntities should be {"vehicleYear": "1999", "vehicleMake": "Tesla"}).
-- DO NOT include irrelevant information in extractedEntities (e.g., don't include "pizza" or "food preferences" or any non-insurance-related data).
-
-Respond ONLY with valid JSON in this exact format:
-{
-  "parsedValue": "The structured answer to the question (ONLY relevant information, no off-topic comments)",
-  "extractedEntities": {
-    "key": "value"
-  }
-}`;
-
   try {
     const response = await openai.chat.completions.create({
       model: AI_MODEL,
+      temperature: 0.2,
       max_tokens: 500,
       messages: [
         { role: "system", content: "You are an expert data parser. Respond only with valid JSON." },
-        { role: "user", content: prompt },
+        { role: "user", content: buildParseAnswerPrompt(questionId, questionText, answer) },
       ],
+      response_format: { type: "json_object" },
     });
 
     const raw = response.choices[0]?.message?.content ?? "";
-    let result = { parsedValue: answer, extractedEntities: {} };
-
-    try {
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        result = JSON.parse(jsonMatch[0]);
-      } else {
-        result = JSON.parse(raw);
-      }
-    } catch (e) {
-      console.error("Failed to parse AI Answer JSON, falling back.", e);
-    }
-
-    res.json(result);
+    res.json(parseAnswerFromModelContent(raw, answer));
   } catch (err) {
     console.error("Parse answer error:", err);
     res.status(500).json({ error: "ai_error", message: "Failed to parse answer" });
   }
 });
-
 
 router.post("/ai/ask-expert", async (req, res): Promise<void> => {
   const parsed = AskExpertBody.safeParse(req.body);
@@ -1191,7 +1155,7 @@ router.post("/ai/ask-expert", async (req, res): Promise<void> => {
   try {
     const pythonScriptPath = path.join(process.cwd(), "src", "python-workers", "moorcheh.py");
 
-    const pythonProcess = spawn("python3", [pythonScriptPath], {
+    const pythonProcess = spawn(resolvePythonBin(), [pythonScriptPath], {
       env: {
         ...process.env,
         MOORCHEH_API_KEY: process.env.MOORCHEH_API_KEY || "",
@@ -1242,123 +1206,6 @@ router.post("/ai/ask-expert", async (req, res): Promise<void> => {
     }));
     pythonProcess.stdin.end();
 
-  } catch (err) {
-    console.error("Ask expert error:", err);
-    res.status(500).json({ error: "ai_error", message: "Failed to ask expert" });
-  }
-});
-
-router.post("/ai/parse-answer", async (req, res): Promise<void> => {
-  const parsed = AiParseAnswerBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "validation_error", message: parsed.error.message });
-    return;
-  }
-
-  const { questionId, questionText, answer } = parsed.data;
-
-  const prompt = `You are an AI assistant parsing answers for an insurance onboarding questionnaire.
-The user was asked: "${questionText}"
-The user's free-form answer was: "${answer}"
-
-CRITICAL RULES - FILTER OUT IRRELEVANT INFORMATION:
-- IGNORE any off-topic comments, personal preferences, or unrelated information (e.g., "I love pizza", "I'm hungry", "The weather is nice", etc.)
-- ONLY extract information that is DIRECTLY relevant to answering the question
-- If the answer contains BOTH relevant and irrelevant information, extract ONLY the relevant part
-- If the answer contains ONLY irrelevant information with no answer to the question, set 'parsedValue' to null
-
-Your job is to extract the core intended answer to the question (parsedValue) and any additional details (extractedEntities).
-- For 'parsedValue', format it cleanly and ONLY include the answer to the question.
-- IMPORTANT: If the user says "I don't know", "not sure", provides only irrelevant information, or provides an ambiguous/unhelpful answer, you MUST set 'parsedValue' to null.
-- For 'extractedEntities', include any other useful details found in their answer that are RELEVANT to insurance onboarding. You MUST use EXACTLY these keys if applicable: 'insuranceType', 'vehicleYear', 'vehicleMake', 'vehicleModel', 'budgetMonthly', 'propertyType', 'age', 'name', 'location'.
-
-Respond ONLY with valid JSON in this exact format:
-{
-  "parsedValue": "The structured answer to the question",
-  "extractedEntities": {
-    "key": "value"
-  }
-}`;
-
-  try {
-    const response = await openai.chat.completions.create({
-      model: AI_MODEL,
-      max_tokens: 500,
-      messages: [
-        { role: "system", content: "You are an expert data parser. Respond only with valid JSON." },
-        { role: "user", content: prompt },
-      ],
-    });
-
-    const raw = response.choices[0]?.message?.content ?? "";
-    let result: { parsedValue: string | null; extractedEntities: Record<string, string> } = { parsedValue: answer, extractedEntities: {} };
-
-    try {
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        result = JSON.parse(jsonMatch[0]);
-      } else {
-        result = JSON.parse(raw);
-      }
-    } catch (e) {
-      console.error("Failed to parse AI Answer JSON, falling back.", e);
-    }
-
-    res.json(result);
-  } catch (err) {
-    console.error("Parse answer error:", err);
-    res.status(500).json({ error: "ai_error", message: "Failed to parse answer" });
-  }
-});
-
-router.post("/ai/ask-expert", async (req, res): Promise<void> => {
-  const parsed = AskExpertBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "validation_error", message: parsed.error.message });
-    return;
-  }
-
-  const { query, chatHistory } = parsed.data;
-
-  try {
-    const pythonScriptPath = path.join(process.cwd(), "src", "python-workers", "moorcheh.py");
-
-    const pythonProcess = spawn("python3", [pythonScriptPath], {
-      env: {
-        ...process.env,
-        MOORCHEH_API_KEY: process.env.MOORCHEH_API_KEY || "",
-      }
-    });
-
-    let stdoutData = "";
-    let stderrData = "";
-
-    pythonProcess.stdout.on("data", (data: Buffer) => { stdoutData += data.toString(); });
-    pythonProcess.stderr.on("data", (data: Buffer) => { stderrData += data.toString(); });
-
-    pythonProcess.on("close", (code: number | null) => {
-      if (code !== 0) {
-        console.error("Python worker failed:", stderrData);
-        res.status(500).json({ error: "ai_error", message: "Python script error" });
-        return;
-      }
-
-      try {
-        const resultJSON = JSON.parse(stdoutData.trim());
-        if (resultJSON.error) {
-          console.error("Moorcheh Error:", resultJSON.error);
-          res.status(500).json({ error: "ai_error", message: resultJSON.error });
-          return;
-        }
-        res.json({ answer: resultJSON.answer, contextCount: resultJSON.contextCount || 0 });
-      } catch (e) {
-        console.error("Failed to parse python stdout:", stdoutData);
-        res.status(500).json({ error: "ai_error", message: "Invalid response from python worker" });
-      }
-    });
-
-    pythonProcess.stdin.write(JSON.stringify({ namespace: "insurewise-knowledge", query, chatHistory }));
-    pythonProcess.stdin.end();
   } catch (err) {
     console.error("Ask expert error:", err);
     res.status(500).json({ error: "ai_error", message: "Failed to ask expert" });

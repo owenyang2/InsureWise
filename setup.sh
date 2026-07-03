@@ -44,10 +44,16 @@ info "  pnpm ✓ (using: $PNPM_CMD)"
 
 # PostgreSQL
 if ! command -v psql &>/dev/null; then
-  error "PostgreSQL is not installed. Install with: brew install postgresql@16 (macOS) or sudo apt install postgresql (Linux)"
-  exit 1
+  if command -v docker &>/dev/null; then
+    warn "  psql not found — use Docker Postgres (see README) or: sudo apt install postgresql"
+    warn "  Example: docker run --name insurewise-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16"
+  else
+    error "PostgreSQL client (psql) is not installed. Install Postgres, use Docker, or see README."
+    exit 1
+  fi
+else
+  info "  PostgreSQL ✓"
 fi
-info "  PostgreSQL ✓"
 
 # Python
 PYTHON_CMD=""
@@ -79,6 +85,17 @@ ENV_FILE="artifacts/api-server/.env"
 if [ -f "$ENV_FILE" ]; then
   info ".env file already exists at $ENV_FILE — skipping creation."
 else
+  if [ -f "artifacts/api-server/.env.example" ]; then
+    info "Creating $ENV_FILE from .env.example..."
+    cp artifacts/api-server/.env.example "$ENV_FILE"
+    DB_USER=$(whoami)
+    if [[ "$OSTYPE" != "darwin"* ]]; then
+      sed -i "s|postgresql://YOUR_USERNAME@|postgresql://$DB_USER@|" "$ENV_FILE" 2>/dev/null || true
+    else
+      sed -i '' "s|postgresql://YOUR_USERNAME@|postgresql://$DB_USER@|" "$ENV_FILE" 2>/dev/null || true
+    fi
+    info ".env created from template (DATABASE_URL username: '$DB_USER')."
+  else
   DB_USER=$(whoami)
   info "Creating $ENV_FILE..."
   cat > "$ENV_FILE" <<EOF
@@ -87,21 +104,21 @@ PORT=3001
 # Local Postgres — auto-detected username: $DB_USER
 DATABASE_URL=postgresql://$DB_USER@localhost:5432/insurewise
 
-# AI model — GPT-OSS 120B hosted on HuggingFace (OpenAI-compatible API)
+# Default AI: hackathon HF endpoint (best-effort; may be unavailable)
 OPENAI_API_KEY=test
 OPENAI_BASE_URL=https://vjioo4r1vyvcozuj.us-east-2.aws.endpoints.huggingface.cloud/v1
 AI_MODEL=openai/gpt-oss-120b
 
-# Moorcheh Python API Key (Knowledge Engine)
-# Get yours at https://console.moorcheh.ai/api-keys
-MOORCHEH_API_KEY=your_key_here
-
-# To use your own OpenAI account instead, set:
+# Recommended — your own OpenAI key:
 # OPENAI_API_KEY=sk-your-key-here
 # OPENAI_BASE_URL=https://api.openai.com/v1
 # AI_MODEL=gpt-4o-mini
+
+# Optional — Moorcheh "Ask Expert" only: https://console.moorcheh.ai/api-keys
+MOORCHEH_API_KEY=
 EOF
   info ".env created with DATABASE_URL using username '$DB_USER'."
+  fi
 fi
 echo ""
 
@@ -109,6 +126,7 @@ echo ""
 # 4. Create database (if it doesn't exist)
 # ------------------------------------------------------------------
 info "Setting up PostgreSQL database..."
+if command -v psql &>/dev/null; then
 if psql -lqt 2>/dev/null | cut -d \| -f 1 | grep -qw insurewise; then
   info "  Database 'insurewise' already exists — skipping."
 else
@@ -119,7 +137,11 @@ else
     warn "  Could not create database. You may need to run manually:"
     warn "    sudo -u postgres createuser --superuser \$(whoami)"
     warn "    createdb insurewise"
+    warn "  Or use Docker Postgres — see README."
   fi
+fi
+else
+  warn "  Skipping createdb (no psql). Ensure DATABASE_URL points at an existing 'insurewise' database."
 fi
 echo ""
 
@@ -138,10 +160,17 @@ echo ""
 # 6. Install Python dependencies (if Python is available)
 # ------------------------------------------------------------------
 if [ -n "$PYTHON_CMD" ]; then
-  info "Installing Python dependencies..."
-  $PYTHON_CMD -m pip install -r artifacts/api-server/src/python-workers/requirements.txt --quiet 2>/dev/null || \
-    pip install -r artifacts/api-server/src/python-workers/requirements.txt --quiet 2>/dev/null || \
-    warn "Could not install Python deps. Run manually: pip install -r artifacts/api-server/src/python-workers/requirements.txt"
+  info "Installing Python dependencies (virtualenv)..."
+  if [ ! -d .venv ]; then
+    $PYTHON_CMD -m venv .venv || warn "Could not create .venv — install python3-venv if needed."
+  fi
+  if [ -x .venv/bin/pip ]; then
+    .venv/bin/pip install -r artifacts/api-server/src/python-workers/requirements.txt --quiet || \
+      warn "Could not install Python deps. Run: source .venv/bin/activate && pip install -r artifacts/api-server/src/python-workers/requirements.txt"
+  else
+    warn "No .venv pip — on Ubuntu/Debian run: sudo apt install python3-venv"
+    warn "Then: python3 -m venv .venv && source .venv/bin/activate && pip install -r artifacts/api-server/src/python-workers/requirements.txt"
+  fi
   echo ""
 fi
 
@@ -159,6 +188,6 @@ echo "    pnpm dev"
 echo ""
 info "Then open http://localhost:5173"
 echo ""
-info "Optional: seed the Moorcheh knowledge base for the AI expert feature:"
-echo "    python scripts/seed-moorcheh.py"
+info "Optional: seed the Moorcheh knowledge base (requires MOORCHEH_API_KEY in .env):"
+echo "    source .venv/bin/activate && python scripts/seed-moorcheh.py"
 echo ""

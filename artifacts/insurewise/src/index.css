@@ -5,8 +5,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
-  --font-display: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  --font-sans: var(--theme-font-sans);
+  --font-display: var(--theme-font-display);
 
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -48,19 +48,80 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-:root {
+/* ── Classic Blue (original) ─────────────────────────────────────────────── */
+[data-theme="classic"] {
+  --theme-font-sans: 'DM Sans', sans-serif;
+  --theme-font-display: 'Outfit', sans-serif;
+
+  --button-outline: rgba(0, 0, 0, .10);
+  --badge-outline: rgba(0, 0, 0, .05);
+  --opaque-button-border-intensity: -8;
+  --elevate-1: rgba(0, 0, 0, .03);
+  --elevate-2: rgba(0, 0, 0, .08);
+
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 214 32% 91%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 214 32% 91%;
+
+  --primary: 221 83% 53%;
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+
+  --accent: 214 32% 91%;
+  --accent-foreground: 222 47% 11%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 221 83% 53%;
+
+  --radius: 0.75rem;
+
+  --shadow-2xs: 0px 1px 2px 0px rgba(15, 23, 42, 0.05);
+  --shadow-xs: 0px 1px 3px 0px rgba(15, 23, 42, 0.1);
+  --shadow-sm: 0px 2px 4px 0px rgba(15, 23, 42, 0.1);
+  --shadow: 0px 4px 6px -1px rgba(15, 23, 42, 0.1), 0px 2px 4px -1px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0px 10px 15px -3px rgba(15, 23, 42, 0.1), 0px 4px 6px -2px rgba(15, 23, 42, 0.05);
+  --shadow-lg: 0px 20px 25px -5px rgba(15, 23, 42, 0.1), 0px 10px 10px -5px rgba(15, 23, 42, 0.04);
+  --shadow-xl: 0px 25px 50px -12px rgba(15, 23, 42, 0.25);
+  --shadow-2xl: 0px 35px 60px -15px rgba(15, 23, 42, 0.3);
+
+  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)));
+  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)));
+  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)));
+  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)));
+  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)));
+}
+
+/* ── Terminal Green (alternate) ──────────────────────────────────────────── */
+[data-theme="terminal"] {
+  --theme-font-sans: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  --theme-font-display: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+
   --button-outline: rgba(0, 255, 65, .15);
   --badge-outline: rgba(0, 255, 65, .08);
-
   --opaque-button-border-intensity: -8;
   --elevate-1: rgba(0, 255, 65, .03);
   --elevate-2: rgba(0, 255, 65, .08);
 
-  /* Terminal Theme — green on black */
-  --background: 160 20% 4%;          /* near-black with slight green tint */
-  --foreground: 120 60% 80%;         /* soft green text */
+  --background: 160 20% 4%;
+  --foreground: 120 60% 80%;
 
-  --card: 160 15% 7%;                /* slightly lighter dark panel */
+  --card: 160 15% 7%;
   --card-foreground: 120 60% 80%;
   --card-border: 120 40% 16%;
 
@@ -68,10 +129,10 @@
   --popover-foreground: 120 60% 80%;
   --popover-border: 120 40% 16%;
 
-  --primary: 120 100% 40%;           /* terminal green */
-  --primary-foreground: 160 20% 4%;  /* black text on green */
+  --primary: 120 100% 40%;
+  --primary-foreground: 160 20% 4%;
 
-  --secondary: 160 15% 10%;          /* dark surface */
+  --secondary: 160 15% 10%;
   --secondary-foreground: 120 60% 75%;
 
   --muted: 160 12% 12%;
@@ -119,29 +180,28 @@
     @apply font-bold tracking-tight;
   }
 
-  /* Terminal cursor blink for inputs */
-  input:focus, textarea:focus, select:focus {
+  [data-theme="terminal"] input:focus,
+  [data-theme="terminal"] textarea:focus,
+  [data-theme="terminal"] select:focus {
     caret-color: hsl(120 100% 40%);
   }
 
-  /* Custom scrollbar to match theme */
-  ::-webkit-scrollbar {
+  [data-theme="terminal"] ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-  ::-webkit-scrollbar-track {
+  [data-theme="terminal"] ::-webkit-scrollbar-track {
     background: hsl(160 15% 7%);
   }
-  ::-webkit-scrollbar-thumb {
+  [data-theme="terminal"] ::-webkit-scrollbar-thumb {
     background: hsl(120 30% 20%);
     border-radius: 3px;
   }
-  ::-webkit-scrollbar-thumb:hover {
+  [data-theme="terminal"] ::-webkit-scrollbar-thumb:hover {
     background: hsl(120 40% 30%);
   }
 
-  /* Range slider styling for terminal theme */
-  input[type="range"] {
+  [data-theme="terminal"] input[type="range"] {
     -webkit-appearance: none;
     appearance: none;
     height: 6px;
@@ -149,7 +209,7 @@
     border-radius: 3px;
     outline: none;
   }
-  input[type="range"]::-webkit-slider-thumb {
+  [data-theme="terminal"] input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
     width: 16px;
@@ -160,8 +220,7 @@
     border: 2px solid hsl(160 20% 4%);
   }
 
-  /* Selection color */
-  ::selection {
+  [data-theme="terminal"] ::selection {
     background: hsla(120, 100%, 40%, 0.3);
     color: hsl(120, 100%, 80%);
   }

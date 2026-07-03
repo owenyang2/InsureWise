@@ -10,6 +10,7 @@ import { LoadingAgents } from "@/components/ui/LoadingAgents";
 export default function Compare() {
   const [location, setLocation] = useLocation();
   const userProfileId = useStore((state) => state.userProfileId);
+  const isTerminal = useStore((state) => state.colorTheme) === "terminal";
   const { data: profile, isLoading: isProfileLoading } = useGetUserProfile({
     query: {
       enabled: !!userProfileId,
@@ -284,7 +285,9 @@ export default function Compare() {
                     <div key={policy.id} className="bg-card rounded-2xl border border-border shadow-md shadow-black/20 hover:shadow-xl hover:border-primary/30 transition-all duration-300 overflow-hidden">
                       {idx === 0 && (
                         <div className="bg-primary px-4 py-1.5 text-center">
-                          <span className="text-xs font-bold text-primary-foreground uppercase tracking-wider">&gt; BEST OVERALL MATCH</span>
+                          <span className="text-xs font-bold text-primary-foreground uppercase tracking-wider">
+                            {isTerminal ? "> BEST OVERALL MATCH" : "Best Overall Match"}
+                          </span>
                         </div>
                       )}
 

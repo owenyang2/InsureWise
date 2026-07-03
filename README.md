@@ -5,15 +5,19 @@ InsureWise is an AI-powered insurance comparison and recommendation platform. Us
 
 ## Quick Start
 
-**Prerequisites:** Node.js 20.19+, pnpm 9+, PostgreSQL running locally, Python 3.10+ (optional, for Moorcheh AI)
+**Prerequisites:** Node.js 20.19+ or 22.12+, pnpm 9+, PostgreSQL (local, Docker, or hosted), Python 3.10+ (optional, for Moorcheh "Ask Expert")
+
+> **Node version:** Local dev works on Node 20.19+ or 22.12+. Replit deployment uses Node 24 (see `.replit`).
 
 ### Option A: Automated setup (recommended)
+
+Requires `psql` on your PATH (native Postgres or Docker — see PostgreSQL section below).
 
 ```bash
 git clone https://github.com/owenyang2/InsureWise.git
 cd InsureWise
 pnpm setup        # installs deps, creates .env, sets up DB, pushes schema
-pnpm dev           # starts API + frontend in one command
+pnpm dev          # starts API + frontend in one command
 # Open http://localhost:5173
 ```
 
@@ -23,23 +27,12 @@ pnpm dev           # starts API + frontend in one command
 git clone https://github.com/owenyang2/InsureWise.git
 cd InsureWise
 pnpm install
+cp artifacts/api-server/.env.example artifacts/api-server/.env
+# Edit .env — set DATABASE_URL (and optionally API keys)
 ```
-
-Create `artifacts/api-server/.env`:
-
-```env
-PORT=3001
-DATABASE_URL=postgresql://YOUR_USERNAME@localhost:5432/insurewise
-OPENAI_API_KEY=test
-OPENAI_BASE_URL=https://vjioo4r1vyvcozuj.us-east-2.aws.endpoints.huggingface.cloud/v1
-AI_MODEL=openai/gpt-oss-120b
-MOORCHEH_API_KEY=your_key_here
-```
-
-> Replace `YOUR_USERNAME` with the output of `whoami`.
 
 ```bash
-createdb insurewise                                          # create the database
+createdb insurewise                                          # or use Docker (see below)
 export $(grep -v '^#' artifacts/api-server/.env | xargs)     # load env vars
 pnpm db:push                                                 # push schema
 pnpm dev                                                     # start the app
@@ -67,22 +60,50 @@ pnpm dev                                                     # start the app
 
 | Requirement | Version | How to install |
 |---|---|---|
-| **Node.js** | v20.19+ or v22.12+ | `nvm install 22 && nvm use 22` ([nvm](https://github.com/nvm-sh/nvm)) |
+| **Node.js** | v20.19+ or v22.12+ (Replit uses 24) | `nvm install 22 && nvm use 22` ([nvm](https://github.com/nvm-sh/nvm)) |
 | **pnpm** | v9+ | `npm install -g pnpm` (or use `npx pnpm` everywhere) |
-| **PostgreSQL** | 14+ | `brew install postgresql@16 && brew services start postgresql@16` (macOS) |
-| **Python** | 3.10+ (optional) | `brew install python` or [python.org](https://www.python.org/downloads/) |
-| **Moorcheh API Key** | — (optional) | [console.moorcheh.ai/api-keys](https://console.moorcheh.ai/api-keys) |
+| **PostgreSQL** | 14+ | See options below (Docker, native, or hosted) |
+| **Python** | 3.10+ (optional) | For Moorcheh "Ask Expert" only — use a venv on Ubuntu/Debian |
+| **Docker** | optional | Easiest Postgres on Linux/WSL2 if you don't want native install |
+
+### API keys
+
+| Key | Required? | Used for | Where to get it | Alternatives |
+|---|---|---|---|---|
+| `DATABASE_URL` | **Yes** | PostgreSQL via Drizzle ORM | Local Postgres, Docker, or [Neon](https://neon.tech) / [Supabase](https://supabase.com) | Any Postgres connection string |
+| `OPENAI_API_KEY` + `OPENAI_BASE_URL` + `AI_MODEL` | **For AI features** | Onboarding chat, policy explain, parse-answer, optimizer | **Recommended:** [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | Any OpenAI-compatible API (Groq, Together, Ollama, etc.) — set `OPENAI_BASE_URL` and `AI_MODEL` |
+| `MOORCHEH_API_KEY` | **Optional** | "Ask Expert" RAG only | Free tier: [console.moorcheh.ai/api-keys](https://console.moorcheh.ai/api-keys) | Omit to run without Ask Expert; all other features work |
+| Carrier APIs | **None** | Checkout handoffs are mocked demo URLs | N/A | N/A |
+
+**Default AI config (no paid key):** The repo ships defaults pointing at a hackathon Hugging Face Inference Endpoint (`OPENAI_API_KEY=test`). This is **best-effort only** — the endpoint may be shut down at any time. For reliable AI, use your own OpenAI key (see [`.env.example`](artifacts/api-server/.env.example)).
 
 ### PostgreSQL setup
 
-**macOS:**
+**Docker (recommended on Linux/WSL2):**
+
+```bash
+docker run --name insurewise-pg \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 \
+  -d postgres:16
+
+docker exec insurewise-pg createdb -U postgres insurewise
+```
+
+Set in `artifacts/api-server/.env`:
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/insurewise
+```
+
+**macOS (native):**
 ```bash
 brew install postgresql@16
 brew services start postgresql@16
 createdb insurewise
 ```
 
-**Linux (Debian/Ubuntu):**
+**Linux (Debian/Ubuntu, native):**
 ```bash
 sudo apt install postgresql
 sudo systemctl start postgresql
@@ -90,33 +111,26 @@ sudo -u postgres createuser --superuser $(whoami)
 createdb insurewise
 ```
 
-**Or use a hosted DB** like [Neon](https://neon.tech) or [Supabase](https://supabase.com) and set `DATABASE_URL` accordingly.
+**Hosted:** Use [Neon](https://neon.tech) or [Supabase](https://supabase.com) and paste the connection string into `DATABASE_URL`.
 
 ### Environment variables
 
-**`artifacts/api-server/.env`** (required):
+Copy the template: `cp artifacts/api-server/.env.example artifacts/api-server/.env`
 
-```env
-PORT=3001
+**`artifacts/api-server/.env`**
 
-# Local Postgres — replace YOUR_USERNAME with output of: whoami
-DATABASE_URL=postgresql://YOUR_USERNAME@localhost:5432/insurewise
+| Variable | Required | Notes |
+|---|---|---|
+| `PORT` | Yes | API server port (default `3001`) |
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `OPENAI_API_KEY` | For AI | Use `sk-...` with OpenAI, or `test` with the default HF endpoint |
+| `OPENAI_BASE_URL` | For AI | `https://api.openai.com/v1` for OpenAI; see `.env.example` for defaults |
+| `AI_MODEL` | For AI | e.g. `gpt-4o-mini` (OpenAI) or `openai/gpt-oss-120b` (default HF) |
+| `MOORCHEH_API_KEY` | Optional | Only for `POST /api/ai/ask-expert` |
 
-# AI model — GPT-OSS 120B (OpenAI-compatible, no key needed for hackathon server)
-OPENAI_API_KEY=test
-OPENAI_BASE_URL=https://vjioo4r1vyvcozuj.us-east-2.aws.endpoints.huggingface.cloud/v1
-AI_MODEL=openai/gpt-oss-120b
+See [`artifacts/api-server/.env.example`](artifacts/api-server/.env.example) for the full annotated template.
 
-# Moorcheh AI Knowledge Engine (optional — needed for "Ask Expert" feature)
-MOORCHEH_API_KEY=your_key_here
-
-# To use your own OpenAI key instead:
-# OPENAI_API_KEY=sk-your-key-here
-# OPENAI_BASE_URL=https://api.openai.com/v1
-# AI_MODEL=gpt-4o-mini
-```
-
-**`artifacts/insurewise/.env`** (optional — dev script sets defaults):
+**`artifacts/insurewise/.env`** (optional — `pnpm dev:web` sets defaults):
 
 ```env
 PORT=5173
@@ -133,7 +147,11 @@ pnpm db:push
 
 ### Moorcheh Knowledge Base (optional)
 
+Requires `MOORCHEH_API_KEY` in `.env`. On Ubuntu/Debian, use a virtualenv (system Python blocks `pip install` via PEP 668):
+
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r artifacts/api-server/src/python-workers/requirements.txt
 python scripts/seed-moorcheh.py
 ```
@@ -154,9 +172,12 @@ The frontend proxies `/api/*` requests to the API server on port 3001.
 | Problem | Solution |
 |---|---|
 | `pnpm: command not found` | `npm install -g pnpm` or use `npx pnpm` instead |
-| Node version / Vite errors | `nvm install 22 && nvm use 22` |
+| Node version / Vite errors | `nvm install 22 && nvm use 22` (local dev: 20.19+ or 22.12+) |
 | `Cannot find native binding` | `rm -rf node_modules && pnpm install` |
+| `psql: command not found` | Install Postgres natively, or use Docker (see PostgreSQL section) |
 | `role "xxx" does not exist` (Postgres) | `sudo -u postgres createuser --superuser $(whoami)` |
+| AI chat / explain returns 500 | Default HF endpoint may be down — set your own `OPENAI_API_KEY` + `OPENAI_BASE_URL` |
+| `externally-managed-environment` (pip) | Use a venv: `python3 -m venv .venv && source .venv/bin/activate` |
 | Moorcheh API errors | Check `MOORCHEH_API_KEY` in `.env` — get one at [console.moorcheh.ai](https://console.moorcheh.ai/api-keys) |
 | `python3: command not found` | Install Python 3.10+; needed for Moorcheh workers |
 | Empty Moorcheh answers | Run `python scripts/seed-moorcheh.py` to seed the knowledge base |
@@ -238,5 +259,6 @@ pnpm --filter @workspace/api-spec run codegen
 ## Notes
 
 - **Session identity** uses `x-session-id` header — the frontend assigns a UUID per browser session in localStorage.
-- **AI models** default to GPT-OSS 120B via Hugging Face; override with `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `AI_MODEL`.
-- **Knowledge Assistant** requires Python 3.10+ locally to spawn worker processes.
+- **AI models** default to a hackathon Hugging Face endpoint (best-effort). For production-like local dev, use your own OpenAI key — see `.env.example`.
+- **Knowledge Assistant** requires Python 3.10+, `MOORCHEH_API_KEY`, and optionally `seed-moorcheh.py` for populated answers.
+- **Carrier checkout** is mocked — no real insurer API keys are used.
