@@ -16,7 +16,7 @@ Requires `psql` on your PATH (native Postgres or Docker — see PostgreSQL secti
 ```bash
 git clone https://github.com/owenyang2/InsureWise.git
 cd InsureWise
-pnpm setup        # installs deps, creates .env, sets up DB, pushes schema
+pnpm run setup    # installs deps, creates .env, sets up DB, pushes schema
 pnpm dev          # starts API + frontend in one command
 # Open http://localhost:5173
 ```
@@ -33,7 +33,7 @@ cp artifacts/api-server/.env.example artifacts/api-server/.env
 
 ```bash
 createdb insurewise                                          # or use Docker (see below)
-export $(grep -v '^#' artifacts/api-server/.env | xargs)     # load env vars
+set -a && source artifacts/api-server/.env && set +a         # load env vars
 pnpm db:push                                                 # push schema
 pnpm dev                                                     # start the app
 # Open http://localhost:5173
@@ -45,7 +45,7 @@ pnpm dev                                                     # start the app
 
 | Command | What it does |
 |---|---|
-| `pnpm setup` | One-time setup: install deps, create `.env`, create DB, push schema |
+| `pnpm run setup` | One-time setup: install deps, create `.env`, create DB, push schema |
 | `pnpm dev` | Start API server (port 3001) + frontend (port 5173) together |
 | `pnpm dev:api` | Start only the API server |
 | `pnpm dev:web` | Start only the frontend |
@@ -141,7 +141,7 @@ API_PORT=3001
 ### Push database schema
 
 ```bash
-export $(grep -v '^#' artifacts/api-server/.env | xargs)
+set -a && source artifacts/api-server/.env && set +a
 pnpm db:push
 ```
 

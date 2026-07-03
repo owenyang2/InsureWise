@@ -74,7 +74,7 @@ echo ""
 # 2. Install Node dependencies
 # ------------------------------------------------------------------
 info "Installing Node dependencies..."
-$PNPM_CMD install
+CI=true $PNPM_CMD install --no-frozen-lockfile
 echo ""
 
 # ------------------------------------------------------------------
@@ -151,7 +151,7 @@ echo ""
 info "Pushing database schema..."
 set -a
 # shellcheck disable=SC1090
-source <(grep -v '^#' "$ENV_FILE" | grep -v '^\s*$')
+source "$ENV_FILE"
 set +a
 $PNPM_CMD --filter @workspace/db run push
 echo ""
