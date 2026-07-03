@@ -29,8 +29,8 @@ export const useStore = create<AppState>()(
       setConfirmationData: (data) => set({ confirmationData: data }),
       colorTheme: 'classic',
       setColorTheme: (theme) => {
-        applyColorTheme(theme);
-        set({ colorTheme: theme });
+        const resolved = applyColorTheme(theme);
+        set({ colorTheme: resolved });
       },
     }),
     {

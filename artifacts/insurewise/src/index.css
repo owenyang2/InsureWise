@@ -48,7 +48,8 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* ── Classic Blue (original) ─────────────────────────────────────────────── */
+/* ── Classic Blue (original) — also :root fallback so vars exist before JS ─ */
+:root,
 [data-theme="classic"] {
   --theme-font-sans: 'DM Sans', sans-serif;
   --theme-font-display: 'Outfit', sans-serif;

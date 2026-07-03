@@ -5,8 +5,14 @@ export const COLOR_THEMES: { value: ColorTheme; label: string }[] = [
   { value: "terminal", label: "Terminal Green" },
 ];
 
-export function applyColorTheme(theme: ColorTheme) {
-  document.documentElement.setAttribute("data-theme", theme);
+export function isColorTheme(value: unknown): value is ColorTheme {
+  return value === "classic" || value === "terminal";
+}
+
+export function applyColorTheme(theme: unknown) {
+  const resolved = isColorTheme(theme) ? theme : "classic";
+  document.documentElement.setAttribute("data-theme", resolved);
+  return resolved;
 }
 
 export function readStoredColorTheme(): ColorTheme {

@@ -37,19 +37,19 @@ export default function Home() {
                   AI-Powered Insurance Matching
                 </span>
 
-                <h1 className="text-5xl md:text-7xl font-display font-bold text-foreground leading-[1.1] mb-6">
+                <h1 className="text-5xl md:text-7xl font-display font-bold leading-[1.1] mb-6">
                   {isTerminal ? (
                     <>
-                      <span className="text-primary">$</span> find the perfect policy,{" "}
+                      <span className="text-primary">$</span>{" "}
+                      <span className="text-foreground">find the perfect policy,</span>{" "}
                       <br />
                       <span className="text-primary">without the headache_</span>
                     </>
                   ) : (
                     <>
-                      Find the perfect policy, <br />
-                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-indigo-500">
-                        without the headache.
-                      </span>
+                      <span className="text-foreground">Find the perfect policy,</span>
+                      <br />
+                      <span className="text-primary">without the headache.</span>
                     </>
                   )}
                 </h1>
